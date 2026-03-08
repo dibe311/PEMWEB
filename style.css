@@ -24,43 +24,36 @@ body {
     color: var(--text-main);
 }
 
-/* --- HERO BANNER HEADER --- */
 .header {
-    /* Mengatur posisi dan tata letak tengah */
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 350px; /* Atur ketinggian banner sesuai keinginan */
+    height: 350px; 
     margin-bottom: 40px;
-    border-radius: 0 0 15px 15px; /* Sedikit melengkungkan bagian bawah (opsional) */
+    border-radius: 0 0 15px 15px; 
 
-    /* Menggabungkan Warna Gradient Biru Transparan dan Gambar Latar */
     background-image: 
-        linear-gradient(rgba(0, 74, 135, 0.7), rgba(0, 74, 135, 0.9)), /* Warna overlay biru UNS transparan */
-        url(gambarpemweb.png); /* <<< GANTI NAMA FILE GAMBARMU DI SINI */
+        linear-gradient(rgba(0, 74, 135, 0.7), rgba(0, 74, 135, 0.9)), 
+        url(gambarpemweb.png); 
 
-    /* Menyesuaikan proporsi gambar agar menutupi seluruh area tanpa gepeng */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    
-    /* Mengubah semua teks di dalam header menjadi putih */
+
     color: #ffffff;
     text-align: center;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-/* Mengatur teks judul (h1) */
 .header h1 {
     font-size: 2.5rem;
     font-weight: 700;
     margin: 0 0 10px 0;
     color: #ffffff;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.3); /* Sedikit bayangan hitam agar teks lebih jelas terbaca */
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
 }
 
-/* Mengatur teks sub-judul (p) */
 .header p {
     font-size: 1.2rem;
     margin: 0;
@@ -278,4 +271,5 @@ mark {
         flex-direction: column;
         align-items: stretch;
     }
+
 }
