@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Rekam Medis Digital</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="notification" class="notification">Data berhasil disimpan!</div>
+
+    <header class="header">
+        <div class="header-content">
+            <h1>Sistem Rekam Medis Digital</h1>
+            <p>Pencatatan Riwayat Kesehatan Terpadu</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="card">
+            <div class="card-header">
+                <h2 id="formTitle">Form Input Data Pasien</h2>
+            </div>
+            <div class="card-body">
+                <form id="patientForm">
+                    <input type="hidden" id="patientId">
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="nama">Nama Pasien</label>
+                            <input type="text" id="nama" required placeholder="Masukkan nama lengkap">
+                        </div>
+                        <div class="form-group">
+                            <label for="umur">Umur</label>
+                            <input type="number" id="umur" required placeholder="Contoh: 35" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="jenisKelamin">Jenis Kelamin</label>
+                            <select id="jenisKelamin" required>
+                                <option value="" disabled selected>Pilih Jenis Kelamin...</option>
+                                <option value="Laki-laki">Laki-laki</option>
+                                <option value="Perempuan">Perempuan</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="telepon">Nomor Telepon</label>
+                            <input type="tel" id="telepon" required placeholder="Contoh: 0812...">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="alamat">Alamat Lengkap</label>
+                            <textarea id="alamat" rows="2" required placeholder="Masukkan alamat domisili"></textarea>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="keluhan">Keluhan Medis</label>
+                            <textarea id="keluhan" rows="2" required placeholder="Deskripsikan keluhan pasien"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="diagnosa">Diagnosa Awal</label>
+                            <input type="text" id="diagnosa" required placeholder="Hasil diagnosa">
+                        </div>
+                        <div class="form-group">
+                            <label for="tanggal">Tanggal Pemeriksaan</label>
+                            <input type="date" id="tanggal" required>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="dokter">Dokter Penanggung Jawab</label>
+                            <input type="text" id="dokter" required placeholder="Nama dokter pemeriksa">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="btnCancel" class="btn btn-secondary" style="display: none;" onclick="resetForm()">Batal Edit</button>
+                        <button type="submit" id="btnSubmit" class="btn btn-primary">Simpan Data Pasien</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header flex-header">
+                <h2>Daftar Pasien</h2>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Cari nama pasien di sini...">
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="patientsTable">
+                        <thead>
+                            <tr>
+                                <th>ID RM</th>
+                                <th>Tgl Periksa</th>
+                                <th>Nama Pasien</th>
+                                <th>L/P</th>
+                                <th>Umur</th>
+                                <th>Keluhan & Diagnosa</th>
+                                <th>Dokter</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
