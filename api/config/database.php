@@ -3,8 +3,8 @@ function getDB() {
     $host     = 'gateway01.ap-southeast-1.prod.alicloud.tidbcloud.com';
     $port     = '4000';
     $dbname   = 'medirek';
-    $username = getenv('TIDB_USER') ?: '3WBVxzrG9xZBsBC.root';
-    $password = getenv('TIDB_PASSWORD'); 'n4RcjqVuNQNiRPcv'
+    $username = '3WBVxzrG9xZBsBC.root';
+    $password = 'n4RcjqVuNQNiRPcv';
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 
