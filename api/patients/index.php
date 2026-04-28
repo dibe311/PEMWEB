@@ -1,29 +1,27 @@
 <?php
-require_once '../config/app.php';
-require_once '../config/database.php';
+require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../config/database.php';
 requireRole(['admin','dokter','perawat']);
 
 $db    = getDB();
 $flash = getFlash();
 
-// Search
 $search = trim($_GET['q'] ?? '');
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $limit  = 15;
 $offset = ($page - 1) * $limit;
 
-// BUG FIX: Selalu filter is_active = 1 agar pasien yang dihapus (soft-delete) tidak muncul
-$where = "WHERE p.is_active = 1";
+$where  = "WHERE p.is_active = 1";
 $params = [];
 if ($search) {
     $where .= " AND (p.name LIKE ? OR p.nik LIKE ? OR p.phone LIKE ?)";
-    $s = "%$search%";
+    $s      = "%$search%";
     $params = [$s, $s, $s];
 }
 
 $total = $db->prepare("SELECT COUNT(*) FROM patients p $where");
 $total->execute($params);
-$total = (int)$total->fetchColumn();
+$total      = (int)$total->fetchColumn();
 $totalPages = ceil($total / $limit);
 
 $stmt = $db->prepare("
@@ -37,12 +35,12 @@ $stmt = $db->prepare("
 $stmt->execute($params);
 $patients = $stmt->fetchAll();
 
-$pageTitle = 'Data Pasien';
+$pageTitle  = 'Data Pasien';
 $activeMenu = 'patients';
 ?>
-<?php require_once '../includes/header.php'; ?>
+<?php require_once __DIR__ . '/../includes/header.php'; ?>
 <div class="app-layout">
-    <?php require_once '../includes/sidebar.php'; ?>
+    <?php require_once __DIR__ . '/../includes/sidebar.php'; ?>
     <div class="main-content">
         <div class="topbar">
             <span class="topbar-title">Data Pasien</span>
@@ -62,7 +60,7 @@ $activeMenu = 'patients';
                     <p class="page-subtitle"><?= number_format($total) ?> pasien terdaftar</p>
                 </div>
                 <?php if (hasRole(['admin','perawat'])): ?>
-                <a href="<?= BASE_URL ?>/patients/add" class="btn btn-primary">
+                <a href="/patients/add" class="btn btn-primary">
                     <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
                     Tambah Pasien
                 </a>
@@ -79,7 +77,7 @@ $activeMenu = 'patients';
                         </div>
                         <button type="submit" class="btn btn-outline btn-sm">Cari</button>
                         <?php if ($search): ?>
-                        <a href="<?= BASE_URL ?>/patients" class="btn btn-ghost btn-sm">Reset</a>
+                        <a href="/patients" class="btn btn-ghost btn-sm">Reset</a>
                         <?php endif; ?>
                     </form>
                 </div>
@@ -111,12 +109,12 @@ $activeMenu = 'patients';
                                 <td><span class="badge <?= $p['insurance_type'] === 'BPJS' ? 'badge-done' : 'badge-draft' ?>"><?= sanitize($p['insurance_type']) ?></span></td>
                                 <td>
                                     <div style="display:flex;gap:6px">
-                                        <a href="<?= BASE_URL ?>/patients/view?id=<?= $p['id'] ?>" class="btn btn-ghost btn-sm">Detail</a>
+                                        <a href="/patients/view?id=<?= $p['id'] ?>" class="btn btn-ghost btn-sm">Detail</a>
                                         <?php if (hasRole(['admin','perawat'])): ?>
-                                        <a href="<?= BASE_URL ?>/patients/edit?id=<?= $p['id'] ?>" class="btn btn-outline btn-sm">Edit</a>
+                                        <a href="/patients/edit?id=<?= $p['id'] ?>" class="btn btn-outline btn-sm">Edit</a>
                                         <?php endif; ?>
                                         <?php if (hasRole(['admin'])): ?>
-                                        <a href="<?= BASE_URL ?>/patients/delete?id=<?= $p['id'] ?>" class="btn btn-danger btn-sm" data-confirm="Hapus pasien <?= sanitize($p['name']) ?>?">Hapus</a>
+                                        <a href="/patients/delete?id=<?= $p['id'] ?>" class="btn btn-danger btn-sm" data-confirm="Hapus pasien <?= sanitize($p['name']) ?>?">Hapus</a>
                                         <?php endif; ?>
                                     </div>
                                 </td>
@@ -125,7 +123,6 @@ $activeMenu = 'patients';
                         </tbody>
                     </table>
                 </div>
-                <!-- Pagination -->
                 <?php if ($totalPages > 1): ?>
                 <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center">
                     <span class="text-sm text-muted">Halaman <?= $page ?> dari <?= $totalPages ?></span>
@@ -142,7 +139,7 @@ $activeMenu = 'patients';
                     <div class="empty-state-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
                     <p class="empty-state-title"><?= $search ? 'Pasien tidak ditemukan' : 'Belum ada pasien' ?></p>
                     <?php if (!$search && hasRole(['admin','perawat'])): ?>
-                    <a href="<?= BASE_URL ?>/patients/add" class="btn btn-primary btn-sm">+ Tambah Pasien</a>
+                    <a href="/patients/add" class="btn btn-primary btn-sm">+ Tambah Pasien</a>
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
@@ -150,4 +147,4 @@ $activeMenu = 'patients';
         </div>
     </div>
 </div>
-<?php require_once '../includes/footer.php'; ?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
