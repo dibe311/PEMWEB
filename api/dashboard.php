@@ -3,7 +3,7 @@
  * dashboard.php
  * TASK 5: Role-Based Dashboard
  * - Admin/Perawat: stats + quick actions + Chart.js 7-day trend
- * - Dokter: personal queue + rekam medis
+ * - Dokter: personal queue + c
  * - Pasien: active queue status + visit history
  */
 require_once 'config/app.php';
@@ -22,6 +22,7 @@ $flash = getFlash();
 
 if (in_array($role, ['admin', 'perawat'])) {
 
+    // Top metrics
     $totalPatients = (int)$db->query("SELECT COUNT(*) FROM patients WHERE is_active=1")->fetchColumn();
 
     $stmtQ = $db->prepare("SELECT COUNT(*) FROM queues WHERE queue_date=?");
@@ -36,7 +37,7 @@ if (in_array($role, ['admin', 'perawat'])) {
     $stmtD->execute([$today]);
     $done = (int)$stmtD->fetchColumn();
 
-    // 7-day visit trend
+    // 7-day visit trend (GROUP BY date)
     $trendStmt = $db->prepare("
         SELECT DATE(queue_date) AS day, COUNT(*) AS total
         FROM queues
@@ -47,6 +48,7 @@ if (in_array($role, ['admin', 'perawat'])) {
     $trendStmt->execute();
     $trendRows = $trendStmt->fetchAll();
 
+    // Fill all 7 days (even if no data)
     $trendLabels = [];
     $trendData   = [];
     for ($i = 6; $i >= 0; $i--) {
@@ -76,21 +78,17 @@ if (in_array($role, ['admin', 'perawat'])) {
 
 } elseif ($role === 'dokter') {
 
-    // FIX: include ALL active statuses including 'waiting' so doctor sees full queue
+    // Doctor's assigned queue today
     $myQueue = $db->prepare("
         SELECT q.id, q.queue_number, q.status, q.created_at,
                p.id AS patient_id, p.name AS patient_name, p.birth_date, p.gender,
-               ic.blood_pressure, ic.temperature, ic.chief_complaint,
-               mr.id AS record_id
+               ic.blood_pressure, ic.temperature, ic.chief_complaint
         FROM queues q
         LEFT JOIN patients p        ON q.patient_id = p.id
         LEFT JOIN initial_checks ic ON ic.queue_id  = q.id
-        LEFT JOIN medical_records mr ON mr.queue_id = q.id
         WHERE q.doctor_id = ? AND q.queue_date = ?
           AND q.status IN ('waiting','called','in_progress')
-        ORDER BY
-          FIELD(q.status,'in_progress','called','waiting'),
-          q.created_at ASC
+        ORDER BY q.created_at ASC
         LIMIT 15
     ");
     $myQueue->execute([$user['id'], $today]);
@@ -104,21 +102,9 @@ if (in_array($role, ['admin', 'perawat'])) {
     $myTotal->execute([$user['id'], $today]);
     $myTotal = (int)$myTotal->fetchColumn();
 
-    // FIX: recent records by this doctor for quick access
-    $recentRecords = $db->prepare("
-        SELECT mr.id, mr.visit_date, mr.diagnosis,
-               p.name AS patient_name, p.id AS patient_id
-        FROM medical_records mr
-        LEFT JOIN patients p ON p.id = mr.patient_id
-        WHERE mr.doctor_id = ?
-        ORDER BY mr.visit_date DESC, mr.created_at DESC
-        LIMIT 5
-    ");
-    $recentRecords->execute([$user['id']]);
-    $recentRecords = $recentRecords->fetchAll();
-
 } elseif ($role === 'pasien') {
 
+    // Find patient record linked to this user
     $patientRec = $db->prepare("SELECT id, name FROM patients WHERE user_id=? LIMIT 1");
     $patientRec->execute([$user['id']]);
     $patientRec = $patientRec->fetch();
@@ -127,6 +113,7 @@ if (in_array($role, ['admin', 'perawat'])) {
     $visitHistory = [];
 
     if ($patientRec) {
+        // Active queue today
         $aqStmt = $db->prepare("
             SELECT q.*, u.name AS doctor_name
             FROM queues q
@@ -137,6 +124,7 @@ if (in_array($role, ['admin', 'perawat'])) {
         $aqStmt->execute([$patientRec['id'], $today]);
         $activeQueue = $aqStmt->fetch();
 
+        // Visit history
         $vhStmt = $db->prepare("
             SELECT mr.visit_date, mr.diagnosis, mr.prescription, u.name AS doctor_name
             FROM medical_records mr
@@ -163,6 +151,7 @@ $doctors = $doctors->fetchAll();
 
 $pageTitle = 'Dashboard';
 $activeMenu = 'dashboard';
+$extraHead  = ''; // inner.css already loaded via header.php cssFile default
 ?>
 <?php require_once 'includes/header.php'; ?>
 <div class="app-layout">
@@ -187,7 +176,7 @@ $activeMenu = 'dashboard';
 
       <?php if ($flash): ?>
       <div class="alert alert-<?= $flash['type'] ?>">
-        <?= $flash['message'] ?>
+        <?= sanitize($flash['message']) ?>
       </div>
       <?php endif; ?>
 
@@ -203,6 +192,7 @@ $activeMenu = 'dashboard';
            ====================================================== -->
       <?php if (in_array($role, ['admin','perawat'])): ?>
 
+      <!-- Greeting Banner -->
       <div class="greeting-banner">
         <div class="greeting-text">
           <h2>Selamat Datang, <?= sanitize(explode(' ', $user['name'])[0]) ?></h2>
@@ -259,32 +249,31 @@ $activeMenu = 'dashboard';
         <span class="section-label">Aksi Cepat</span>
       </div>
       <div class="quick-actions mb-4">
-        <a href="<?= BASE_URL ?>/patients/add.php" class="quick-action-btn">
+        <a href="<?= BASE_URL ?>/patients/add" class="quick-action-btn">
           <div class="quick-action-icon">
             <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
           </div>
           <span class="quick-action-label">Tambah Pasien</span>
         </a>
-        <a href="<?= BASE_URL ?>/queues/create.php" class="quick-action-btn">
+        <a href="<?= BASE_URL ?>/queues/create" class="quick-action-btn">
           <div class="quick-action-icon">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
           </div>
           <span class="quick-action-label">Buat Antrian</span>
         </a>
-        <a href="<?= BASE_URL ?>/initial_checks/index.php" class="quick-action-btn">
+        <a href="<?= BASE_URL ?>/initial_checks" class="quick-action-btn">
           <div class="quick-action-icon">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9v-2h2v2zm0-4H9V7h2v2z" clip-rule="evenodd"/></svg>
           </div>
           <span class="quick-action-label">Pemeriksaan Awal</span>
         </a>
-        <a href="<?= BASE_URL ?>/patients/index.php" class="quick-action-btn">
+        <a href="<?= BASE_URL ?>/patients" class="quick-action-btn">
           <div class="quick-action-icon">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
           </div>
           <span class="quick-action-label">Cari Pasien</span>
-        </a>
-        <?php if ($role === 'admin'): ?>
-        <a href="<?= BASE_URL ?>/admin/users.php" class="quick-action-btn">
+        </a>        <?php if ($role === 'admin'): ?>
+        <a href="<?= BASE_URL ?>/admin/users" class="quick-action-btn">
           <div class="quick-action-icon">
             <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           </div>
@@ -312,7 +301,7 @@ $activeMenu = 'dashboard';
         <div class="card">
           <div class="card-header">
             <span class="card-title">Antrian Hari Ini</span>
-            <a href="<?= BASE_URL ?>/queues/index.php" class="btn btn-ghost btn-sm">Lihat Semua →</a>
+            <a href="<?= BASE_URL ?>/queues" class="btn btn-ghost btn-sm">Lihat Semua →</a>
           </div>
           <?php if ($queueList): ?>
           <div class="table-wrapper">
@@ -335,14 +324,7 @@ $activeMenu = 'dashboard';
                   </td>
                   <td>
                     <span class="badge badge-<?= $q['status'] ?>">
-                      <?= match($q['status']) {
-                        'waiting'     => 'Menunggu',
-                        'called'      => 'Dipanggil',
-                        'in_progress' => 'Diperiksa',
-                        'done'        => 'Selesai',
-                        'cancelled'   => 'Batal',
-                        default       => $q['status']
-                      } ?>
+                      <?= queueStatusLabel($q['status']) ?>
                     </span>
                   </td>
                   <td>
@@ -363,7 +345,7 @@ $activeMenu = 'dashboard';
           <div class="empty-state" style="padding:28px">
             <div class="empty-state-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg></div>
             <p class="empty-state-title">Belum ada antrian</p>
-            <a href="<?= BASE_URL ?>/queues/create.php" class="btn btn-primary btn-sm">+ Buat Antrian</a>
+            <a href="<?= BASE_URL ?>/queues/create" class="btn btn-primary btn-sm">+ Buat Antrian</a>
           </div>
           <?php endif; ?>
         </div>
@@ -397,11 +379,22 @@ $activeMenu = 'dashboard';
             maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
-              tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} kunjungan` } }
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.parsed.y} kunjungan`
+                }
+              }
             },
             scales: {
-              y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } }, grid: { color: '#EEEEEE' } },
-              x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+              y: {
+                beginAtZero: true,
+                ticks: { precision: 0, font: { size: 11 } },
+                grid: { color: '#EEEEEE' }
+              },
+              x: {
+                ticks: { font: { size: 11 } },
+                grid: { display: false }
+              }
             }
           }
         });
@@ -413,6 +406,7 @@ $activeMenu = 'dashboard';
            ====================================================== -->
       <?php elseif ($role === 'dokter'): ?>
 
+      <!-- Greeting -->
       <div class="greeting-banner">
         <div class="greeting-text">
           <h2>Dr. <?= sanitize(explode(' ', $user['name'])[0]) ?></h2>
@@ -424,92 +418,88 @@ $activeMenu = 'dashboard';
             <?= $myDone ?> selesai
           </div>
           <div class="greeting-badge" style="background:rgba(255,193,7,.15);color:#FFD54F">
-            <?= count($myQueue) ?> aktif
+            <?= count($myQueue) ?> menunggu
           </div>
         </div>
       </div>
 
       <div class="two-col-grid">
 
-        <!-- ── Antrian Pasien ── -->
+        <!-- Queue list for this doctor -->
         <div class="card" style="grid-column: span 1">
           <div class="card-header">
             <span class="card-title">Antrian Pasien Saya</span>
-            <a href="<?= BASE_URL ?>/queues/index.php" class="btn btn-ghost btn-sm">Lihat Semua →</a>
+            <span class="badge badge-waiting"><?= count($myQueue) ?> pasien</span>
           </div>
           <div class="card-body" style="padding:12px">
             <?php if ($myQueue): ?>
               <?php foreach ($myQueue as $q): ?>
-              <div class="call-card" style="<?= $q['status']==='in_progress' ? 'border-left:3px solid var(--blue);background:var(--blue-pale)' : ($q['status']==='called' ? 'border-left:3px solid var(--green)' : '') ?>">
+              <div class="call-card">
                 <div class="call-num"><?= sanitize($q['queue_number']) ?></div>
-                <div class="call-info" style="flex:1">
+                <div class="call-info">
                   <div class="call-patient"><?= sanitize($q['patient_name']) ?></div>
                   <div class="call-sub">
-                    <?= calculateAge($q['birth_date']) ?> th · <?= $q['gender']==='L' ? 'L' : 'P' ?>
+                    <?= calculateAge($q['birth_date']) ?> th
                     <?php if ($q['chief_complaint']): ?>
-                      · <?= sanitize(mb_substr($q['chief_complaint'], 0, 40)) ?>…
+                      · <?= sanitize(mb_substr($q['chief_complaint'], 0, 40)) ?>
                     <?php endif; ?>
                   </div>
                   <?php if ($q['blood_pressure'] || $q['temperature']): ?>
                   <div class="text-xs text-muted mt-1">
-                    <?= $q['blood_pressure'] ? '🩺 TD: ' . sanitize($q['blood_pressure']) . ' mmHg' : '' ?>
-                    <?= $q['temperature']    ? ' · 🌡 ' . $q['temperature'] . '°C' : '' ?>
+                    <?= $q['blood_pressure'] ? 'TD: ' . sanitize($q['blood_pressure']) : '' ?>
+                    <?= $q['temperature']    ? ' · Suhu: ' . $q['temperature'] . '°C' : '' ?>
                   </div>
-                  <?php else: ?>
-                  <div class="text-xs" style="color:var(--amber);margin-top:2px">⏳ Belum ada data vital dari perawat</div>
                   <?php endif; ?>
                 </div>
-
-                <!-- FIX: tombol aksi per status -->
-                <div class="flex gap-1" style="flex-direction:column;align-items:flex-end">
-                  <?php if ($q['status'] === 'in_progress' && !$q['record_id']): ?>
-                    <!-- Sedang diperiksa → langsung ke rekam medis -->
-                    <a href="<?= BASE_URL ?>/medical_records/create.php?queue_id=<?= $q['id'] ?>&patient_id=<?= $q['patient_id'] ?>"
-                       class="btn btn-primary btn-sm">
-                      📋 Rekam Medis
-                    </a>
-                  <?php elseif ($q['status'] === 'in_progress' && $q['record_id']): ?>
-                    <!-- Rekam medis sudah dibuat -->
-                    <a href="<?= BASE_URL ?>/medical_records/view.php?id=<?= $q['record_id'] ?>"
-                       class="btn btn-ghost btn-sm">Lihat RM</a>
+                <div class="flex gap-2">
+                  <?php if ($q['status'] === 'in_progress'): ?>
+                  <a href="<?= BASE_URL ?>/medical_records/create?queue_id=<?= $q['id'] ?>&patient_id=<?= $q['patient_id'] ?>"
+                     class="btn btn-primary btn-sm">Periksa</a>
                   <?php elseif ($q['status'] === 'called'): ?>
-                    <!-- Dipanggil perawat → dokter konfirmasi masuk -->
-                    <button class="btn btn-success btn-sm" data-queue-action="in_progress" data-queue-id="<?= $q['id'] ?>">
-                      ▶ Mulai Periksa
-                    </button>
-                  <?php elseif ($q['status'] === 'waiting'): ?>
-                    <!-- Belum dipanggil perawat -->
-                    <span class="badge badge-waiting" style="font-size:11px">Menunggu</span>
+                  <button class="btn btn-success btn-sm" data-queue-action="in_progress" data-queue-id="<?= $q['id'] ?>">Mulai</button>
+                  <?php else: ?>
+                  <span class="badge badge-waiting">Menunggu</span>
                   <?php endif; ?>
                 </div>
               </div>
               <?php endforeach; ?>
             <?php else: ?>
             <div class="empty-state">
-              <div class="empty-state-icon">
-                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1z"/></svg>
-              </div>
-              <p class="empty-state-title">Tidak ada antrian aktif hari ini</p>
+              <div class="empty-state-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
+              <p class="empty-state-title">Tidak ada antrian aktif</p>
             </div>
             <?php endif; ?>
           </div>
         </div>
 
-        <!-- ── Sidebar dokter: aksi + statistik + rekam medis terbaru ── -->
+        <!-- Dokter on duty + quick links -->
         <div class="flex flex-col gap-3">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Aksi Cepat</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+              <a href="<?= BASE_URL ?>/medical_records" class="btn btn-outline w-full" style="justify-content:start">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/></svg>
+                Riwayat Rekam Medis
+              </a>
+              <a href="<?= BASE_URL ?>/medical_records/new" class="btn btn-primary w-full" style="justify-content:start">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+                Catat Rekam Medis Baru
+              </a>
+              <a href="<?= BASE_URL ?>/patients" class="btn btn-outline w-full" style="justify-content:start">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Data Pasien
+              </a>
+            </div>
+          </div>
 
-          <!-- Statistik hari ini -->
+          <!-- Today's stats -->
           <div class="card">
             <div class="card-header"><span class="card-title">Statistik Hari Ini</span></div>
             <div class="card-body">
-              <div class="vitals-grid" style="grid-template-columns:repeat(3,1fr)">
+              <div class="vitals-grid" style="grid-template-columns:1fr 1fr">
                 <div class="vital-item">
                   <div class="vital-value"><?= $myTotal ?></div>
-                  <div class="vital-label">Total</div>
-                </div>
-                <div class="vital-item" style="background:var(--amber-bg);border-color:var(--amber-border)">
-                  <div class="vital-value" style="color:var(--amber)"><?= count($myQueue) ?></div>
-                  <div class="vital-label">Aktif</div>
+                  <div class="vital-label">Total Antrian</div>
                 </div>
                 <div class="vital-item" style="background:var(--green-bg);border-color:var(--green-border)">
                   <div class="vital-value" style="color:var(--green)"><?= $myDone ?></div>
@@ -518,52 +508,7 @@ $activeMenu = 'dashboard';
               </div>
             </div>
           </div>
-
-          <!-- FIX: Aksi Cepat dokter — hanya link yang valid lewat alur antrian -->
-          <div class="card">
-            <div class="card-header"><span class="card-title">Aksi Cepat</span></div>
-            <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
-              <a href="<?= BASE_URL ?>/queues/index.php" class="btn btn-primary w-full" style="justify-content:start">
-                <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-                Daftar Antrian Hari Ini
-              </a>
-              <a href="<?= BASE_URL ?>/medical_records/index.php" class="btn btn-outline w-full" style="justify-content:start">
-                <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/></svg>
-                Semua Rekam Medis
-              </a>
-              <a href="<?= BASE_URL ?>/patients/index.php" class="btn btn-outline w-full" style="justify-content:start">
-                <svg viewBox="0 0 20 20" fill="currentColor" style="width:16px;height:16px"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1z"/></svg>
-                Data Pasien
-              </a>
-            </div>
-          </div>
-
-          <!-- FIX: Rekam Medis Terbaru — konteks cepat tanpa link buat baru yang salah alur -->
-          <?php if ($recentRecords): ?>
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Rekam Medis Terbaru</span>
-              <a href="<?= BASE_URL ?>/medical_records/index.php" class="btn btn-ghost btn-sm">Semua →</a>
-            </div>
-            <div class="card-body" style="padding:12px">
-              <?php foreach ($recentRecords as $rec): ?>
-              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-                <div style="flex:1;min-width:0">
-                  <div class="text-sm font-semibold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                    <?= sanitize($rec['patient_name']) ?>
-                  </div>
-                  <div class="text-xs text-muted"><?= sanitize(mb_substr($rec['diagnosis'],0,45)) ?><?= strlen($rec['diagnosis'])>45?'…':'' ?></div>
-                  <div class="text-xs text-muted"><?= date('d/m/Y', strtotime($rec['visit_date'])) ?></div>
-                </div>
-                <a href="<?= BASE_URL ?>/medical_records/view.php?id=<?= $rec['id'] ?>"
-                   class="btn btn-ghost btn-sm" style="flex-shrink:0">Lihat</a>
-              </div>
-              <?php endforeach; ?>
-            </div>
-          </div>
-          <?php endif; ?>
-
-        </div><!-- /sidebar dokter -->
+        </div>
 
       </div><!-- end two-col-grid dokter -->
 
@@ -586,28 +531,21 @@ $activeMenu = 'dashboard';
       </div>
       <?php else: ?>
 
+        <!-- Active queue -->
         <?php if ($activeQueue): ?>
         <div class="queue-banner">
           <div class="queue-big-number"><?= sanitize($activeQueue['queue_number']) ?></div>
           <div class="queue-banner-info">
             <h3>Nomor Antrian Aktif</h3>
             <p>
-              Status: <strong><?= match($activeQueue['status']) {
-                'waiting'     => 'Menunggu dipanggil',
-                'called'      => 'Silakan masuk ke ruang dokter',
-                'in_progress' => 'Sedang diperiksa',
-                default       => $activeQueue['status']
-              } ?></strong>
+              Status: <strong><?= queueStatusLabel($activeQueue['status']) ?></strong>
               <?php if ($activeQueue['doctor_name']): ?>
                 · Dokter: Dr. <?= sanitize($activeQueue['doctor_name']) ?>
               <?php endif; ?>
             </p>
           </div>
           <span class="badge badge-<?= $activeQueue['status'] ?>" style="margin-left:auto">
-            <?= match($activeQueue['status']) {
-              'waiting' => 'Menunggu', 'called' => 'Dipanggil',
-              'in_progress' => 'Diperiksa', default => $activeQueue['status']
-            } ?>
+            <?= queueStatusLabel($activeQueue['status']) ?>
           </span>
         </div>
         <?php else: ?>
@@ -617,16 +555,22 @@ $activeMenu = 'dashboard';
         </div>
         <?php endif; ?>
 
+        <!-- Visit history -->
         <div class="card">
           <div class="card-header">
             <span class="card-title">Riwayat Kunjungan</span>
-            <a href="<?= BASE_URL ?>/patients/my_records.php" class="btn btn-ghost btn-sm">Lihat Semua →</a>
+            <a href="<?= BASE_URL ?>/patients/my_records" class="btn btn-ghost btn-sm">Lihat Semua →</a>
           </div>
           <?php if ($visitHistory): ?>
           <div class="table-wrapper">
             <table class="data-table">
               <thead>
-                <tr><th>Tanggal</th><th>Diagnosa</th><th>Dokter</th><th>Resep</th></tr>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Diagnosa</th>
+                  <th>Dokter</th>
+                  <th>Resep</th>
+                </tr>
               </thead>
               <tbody>
                 <?php foreach ($visitHistory as $v): ?>
@@ -682,6 +626,205 @@ $activeMenu = 'dashboard';
   </div><!-- /main-content -->
 </div><!-- /app-layout -->
 
-<script src="<?= BASE_URL ?>/public/js/app.js"></script>
+<script>
+// MediRek — Main JS
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ---- Auto-dismiss alerts ----
+    document.querySelectorAll('.alert').forEach(el => {
+        setTimeout(() => {
+            el.style.transition = 'opacity .4s';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 400);
+        }, 4500);
+    });
+
+    // ---- Confirm delete/action buttons ----
+    document.querySelectorAll('[data-confirm]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            if (!confirm(btn.dataset.confirm || 'Yakin ingin menghapus data ini?')) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // ---- Modal system ----
+    document.querySelectorAll('[data-modal-open]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const modal = document.getElementById(btn.dataset.modalOpen);
+            if (modal) modal.classList.add('open');
+        });
+    });
+
+    document.querySelectorAll('.modal-close, [data-modal-close]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            btn.closest('.modal-overlay')?.classList.remove('open');
+        });
+    });
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) overlay.classList.remove('open');
+        });
+    });
+
+    // ---- Mobile sidebar toggle ----
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+    }
+
+    // ---- Live clock in topbar ----
+    const clockEl = document.getElementById('liveClock');
+    if (clockEl) {
+        const update = () => {
+            const now = new Date();
+            clockEl.textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        };
+        update();
+        setInterval(update, 10000);
+    }
+
+    // ---- Demo account fill (login page) ----
+    document.querySelectorAll('.demo-row').forEach(row => {
+        row.addEventListener('click', () => {
+            const email = row.dataset.email;
+            const pwd = row.dataset.password;
+            const emailField = document.getElementById('email');
+            const pwdField = document.getElementById('password');
+            if (emailField) emailField.value = email;
+            if (pwdField) { pwdField.value = pwd; pwdField.type = 'text'; setTimeout(() => pwdField.type='password', 600); }
+        });
+    });
+
+    // ---- Inline patient search autocomplete (new.php) ----
+    const patientSearch = document.getElementById('patientSearch');
+    const patientDropdown = document.getElementById('patientDropdown');
+    const patientIdInput = document.getElementById('patientId');
+
+    if (patientSearch && patientDropdown) {
+        let debounceTimer;
+        patientSearch.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+                const q = patientSearch.value.trim();
+                if (q.length < 2) { patientDropdown.classList.remove('open'); return; }
+                try {
+                    // FIX: gunakan path relatif dari BASE_URL, tidak hardcode /medirek/
+                    const res = await fetch(`/apb/search_patients?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
+                    const data = await res.json();
+                    patientDropdown.innerHTML = '';
+                    if (!data.length) {
+                        patientDropdown.innerHTML = '<div class="patient-option text-muted">Tidak ditemukan</div>';
+                    } else {
+                        data.forEach(p => {
+                            const div = document.createElement('div');
+                            div.className = 'patient-option';
+                            div.innerHTML = `<div class="patient-option-name">${escHtml(p.name)}</div><div class="patient-option-sub">NIK: ${escHtml(p.nik)} &bull; ${p.gender === 'L' ? 'Laki-laki' : 'Perempuan'} &bull; ${p.age} th</div>`;
+                            div.addEventListener('click', () => {
+                                patientSearch.value = p.name;
+                                if (patientIdInput) patientIdInput.value = p.id;
+                                patientDropdown.classList.remove('open');
+                                // Enable submit button
+                                const submitBtn = document.getElementById('submitBtn');
+                                if (submitBtn) submitBtn.disabled = false;
+                                // Trigger patient info update
+                                if (typeof onPatientSelected === 'function') onPatientSelected(p);
+                                // Update info card for new.php
+                                const infoCard = document.getElementById('patientInfoCard');
+                                const headerRow = document.getElementById('patientHeaderRow');
+                                const infoAvatar = document.getElementById('infoAvatar');
+                                const infoName = document.getElementById('infoName');
+                                const infoSub = document.getElementById('infoSub');
+                                const infoAllergy = document.getElementById('infoAllergy');
+                                if (infoCard) infoCard.style.display = 'block';
+                                if (headerRow) headerRow.style.display = 'flex';
+                                if (infoAvatar) infoAvatar.textContent = p.name.substring(0, 2).toUpperCase();
+                                if (infoName) infoName.textContent = p.name;
+                                if (infoSub) infoSub.textContent = `${p.gender === 'L' ? 'Laki-laki' : 'Perempuan'} \u00b7 ${p.age} tahun`;
+                                if (infoAllergy) {
+                                    if (p.allergy) {
+                                        infoAllergy.textContent = '\u26a0 Alergi: ' + p.allergy;
+                                        infoAllergy.style.display = 'inline-flex';
+                                    } else {
+                                        infoAllergy.style.display = 'none';
+                                    }
+                                }
+                            });
+                            patientDropdown.appendChild(div);
+                        });
+                    }
+                    patientDropdown.classList.add('open');
+                } catch (_) {}
+            }, 280);
+        });
+
+        document.addEventListener('click', e => {
+            if (!patientSearch.contains(e.target)) patientDropdown.classList.remove('open');
+        });
+    }
+
+    // ---- Character counter for textareas ----
+    document.querySelectorAll('textarea[maxlength]').forEach(ta => {
+        const counter = document.createElement('div');
+        counter.className = 'text-xs text-muted mt-2';
+        const update = () => { counter.textContent = `${ta.value.length} / ${ta.maxLength}`; };
+        ta.after(counter);
+        ta.addEventListener('input', update);
+        update();
+    });
+
+    // ---- Queue status quick-update via AJAX ----
+    // FIX: gunakan BASE_URL yang benar, tidak hardcode /medirek/
+    document.querySelectorAll('[data-queue-action]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const queueId = btn.dataset.queueId;
+            const action = btn.dataset.queueAction;
+            const confirmMsg = btn.dataset.confirm;
+
+            if (confirmMsg && !confirm(confirmMsg)) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const res = await fetch('/apb/queue_action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ queue_id: parseInt(queueId), action })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    showToast('error', data.message || 'Gagal memperbarui antrian');
+                    btn.disabled = false;
+                    btn.innerHTML = action === 'called' ? 'Panggil' : action === 'in_progress' ? 'Mulai' : 'Batal';
+                }
+            } catch (_) {
+                btn.disabled = false;
+                showToast('error', 'Terjadi kesalahan jaringan');
+            }
+        });
+    });
+});
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(type, message) {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type}`;
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.15);';
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity .4s'; setTimeout(() => toast.remove(), 400); }, 3500);
+}
+
+</script>
 </body>
 </html>
