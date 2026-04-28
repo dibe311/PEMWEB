@@ -21,7 +21,7 @@ $db = getDB();
 $queueId = (int)($_GET['queue_id'] ?? 0);
 if (!$queueId) {
     flashMessage('error', 'ID antrian tidak valid.');
-    redirect('queues');
+    redirect('queues/index.php');
 }
 
 // Ambil data antrian + pasien
@@ -46,7 +46,7 @@ $queue = $qStmt->fetch();
 
 if (!$queue) {
     flashMessage('error', 'Antrian tidak ditemukan.');
-    redirect('queues');
+    redirect('queues/index.php');
 }
 
 // Cek apakah sudah ada pemeriksaan awal
@@ -54,7 +54,7 @@ $existing = $db->prepare("SELECT id FROM initial_checks WHERE queue_id = ?");
 $existing->execute([$queueId]);
 if ($existing->fetch()) {
     flashMessage('warning', "Pemeriksaan awal antrian {$queue['queue_number']} sudah diinput sebelumnya.");
-    redirect('queues');
+    redirect('queues/index.php');
 }
 
 // Ambil data vital terakhir pasien ini (sebagai referensi)
@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->commit();
 
             flashMessage('success', "Pemeriksaan awal antrian <strong>{$queue['queue_number']}</strong> tersimpan. Pasien siap dipanggil dokter.");
-            redirect('queues');
+            redirect('queues/index.php');
 
         } catch (Exception $e) {
             $db->rollBack();
@@ -180,7 +180,7 @@ ob_start();
         <h1 class="page-title">Input Pemeriksaan Awal</h1>
         <p class="page-subtitle">Antrian <?= sanitize($queue['queue_number']) ?> · <?= date('d F Y', strtotime($queue['queue_date'])) ?></p>
     </div>
-    <a href="<?= BASE_URL ?>/queues" class="btn btn-outline">← Kembali ke Antrian</a>
+    <a href="<?= BASE_URL ?>/queues/index.php" class="btn btn-outline">← Kembali ke Antrian</a>
 </div>
 
 <!-- ── Banner info pasien ── -->
@@ -443,7 +443,7 @@ ob_start();
                         </label>
                         <textarea class="form-control" name="chief_complaint" rows="4" required
                                   placeholder="Deskripsikan keluhan utama pasien sejelas mungkin.&#10;Contoh: Demam 3 hari, batuk berdahak, nyeri tenggorokan..."><?= sanitize($_POST['chief_complaint'] ?? '') ?></textarea>
-                        <div class="form-hint">Informasi ini langsung muncul di form rekam medis dokter.</div>
+                        <div class="form-hint">✅ Data ini langsung muncul sebagai pre-fill di form rekam medis dokter, mempersingkat waktu pemeriksaan.</div>
                     </div>
 
                     <!-- Konfirmasi Alergi -->
@@ -501,9 +501,10 @@ ob_start();
                         Setelah disimpan, data ini akan:
                     </div>
                     <ul style="font-size:12px;color:var(--gray-700);padding-left:18px;line-height:2;margin-top:4px">
-                        <li>Disimpan sebagai catatan pemeriksaan awal</li>
-                        <li>Status antrian berubah ke <strong>"Dipanggil"</strong></li>
-                        <li>Data vital & anamnesis otomatis muncul di form rekam medis dokter</li>
+                        <li>Disimpan sebagai catatan pemeriksaan awal perawat</li>
+                        <li>Status antrian otomatis: <strong style="color:var(--green)">Menunggu → Dipanggil</strong></li>
+                        <li>Data vital &amp; anamnesis langsung pre-fill form SOAP dokter</li>
+                        <li>Dokter bisa baca TD, suhu, keluhan tanpa tanya ulang ke pasien</li>
                         <?php if ($queue['allergy']): ?>
                         <li style="color:var(--red)">Alergi pasien akan ditampilkan di header rekam medis</li>
                         <?php endif; ?>
@@ -513,7 +514,7 @@ ob_start();
 
             <!-- Tombol -->
             <div class="flex justify-end gap-2">
-                <a href="<?= BASE_URL ?>/queues" class="btn btn-outline">Batal</a>
+                <a href="<?= BASE_URL ?>/queues/index.php" class="btn btn-outline">Batal</a>
                 <button type="submit" class="btn btn-primary btn-lg">
                     <svg viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
@@ -614,6 +615,5 @@ ob_start();
 </script>
 
 <?php
-// BUG FIX: gunakan __DIR__ agar path selalu absolut, tidak bergantung working directory server
 $pageContent = ob_get_clean();
-require_once __DIR__ . '/../includes/layout.php';
+require_once '../includes/layout.php';
